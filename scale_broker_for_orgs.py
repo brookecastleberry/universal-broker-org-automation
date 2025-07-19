@@ -19,17 +19,87 @@ import requests
 import json
 import argparse
 import sys
+import os
 import time
 from datetime import datetime
 
 
-def load_organizations_from_json(json_file_path):
+def sanitize_input_path(user_path, base_dir=None):
+    """
+    Validate input file paths to prevent path traversal attacks.
+    
+    Args:
+        user_path (str): User-provided file path
+        base_dir (str): Base directory to restrict reads to (default: current dir)
+    
+    Returns:
+        str: Validated absolute path
+        
+    Raises:
+        ValueError: If path is outside allowed directory or invalid
+        FileNotFoundError: If file doesn't exist
+    """
+    if base_dir is None:
+        base_dir = os.getcwd()
+    
+    # Convert to absolute paths
+    abs_user_path = os.path.abspath(user_path)
+    abs_base_dir = os.path.abspath(base_dir)
+    
+    # Check if the path is within the allowed directory
+    if not abs_user_path.startswith(abs_base_dir):
+        raise ValueError(f"Input path must be within {abs_base_dir}")
+    
+    # Check if file exists
+    if not os.path.exists(abs_user_path):
+        raise FileNotFoundError(f"File not found: {user_path}")
+    
+    # Ensure it's a JSON file
+    if not abs_user_path.endswith('.json'):
+        raise ValueError("Input file must be a JSON file")
+    
+    return abs_user_path
+
+
+def sanitize_output_path(user_path, base_dir=None):
+    """
+    Validate and sanitize output file paths to prevent path traversal.
+    
+    Args:
+        user_path (str): User-provided file path
+        base_dir (str): Base directory to restrict writes to (default: current dir)
+    
+    Returns:
+        str: Validated absolute path
+        
+    Raises:
+        ValueError: If path is outside allowed directory or invalid
+    """
+    if base_dir is None:
+        base_dir = os.getcwd()
+    
+    # Convert to absolute paths
+    abs_user_path = os.path.abspath(user_path)
+    abs_base_dir = os.path.abspath(base_dir)
+    
+    # Check if the path is within the allowed directory
+    if not abs_user_path.startswith(abs_base_dir):
+        raise ValueError(f"Output path must be within {abs_base_dir}")
+    
+    # Ensure it's a valid file extension
+    if not abs_user_path.endswith(('.json', '.log')):
+        raise ValueError("Output file must have .json or .log extension")
+    
+    return abs_user_path
+
+
+def load_organizations_from_json(validated_json_file_path):
     """
     Load organizations data from JSON file, excluding any organizations 
     that are in the excluded_organizations section.
     
     Args:
-        json_file_path (str): Path to the JSON file containing organizations
+        validated_json_file_path (str): Pre-validated path to the JSON file containing organizations
         
     Returns:
         tuple: (list of organizations, list of excluded organizations)
@@ -39,7 +109,7 @@ def load_organizations_from_json(json_file_path):
         json.JSONDecodeError: If the JSON file is malformed
     """
     try:
-        with open(json_file_path, 'r') as f:
+        with open(validated_json_file_path, 'r') as f:
             data = json.load(f)
         
         # Handle different JSON structures
@@ -64,7 +134,7 @@ def load_organizations_from_json(json_file_path):
         # Filter out excluded organizations from the main list
         filtered_orgs = [org for org in orgs if org.get('id') not in excluded_ids]
         
-        print(f"Loaded {len(orgs)} organizations from {json_file_path}")
+        print(f"Loaded {len(orgs)} organizations from {validated_json_file_path}")
         if excluded_orgs:
             print(f"Found {len(excluded_orgs)} excluded organizations - these will be skipped")
             print(f"Processing {len(filtered_orgs)} organizations for Universal Broker connections")
@@ -72,9 +142,11 @@ def load_organizations_from_json(json_file_path):
         return filtered_orgs, excluded_orgs
         
     except FileNotFoundError:
-        raise FileNotFoundError(f"JSON file not found: {json_file_path}")
+        raise FileNotFoundError(f"JSON file not found: {validated_json_file_path}")
     except json.JSONDecodeError as e:
-        raise json.JSONDecodeError(f"Invalid JSON in file {json_file_path}: {e}")
+        raise json.JSONDecodeError(f"Invalid JSON in file {validated_json_file_path}: {e}")
+    except ValueError as e:
+        raise ValueError(f"Path validation error: {e}")
 
 
 def connect_org_to_broker(tenant_id, connection_id, org_id, api_token, integration_id, integration_type, debug=False):
@@ -209,8 +281,12 @@ def main():
         args.output_log = f"connection_log_{timestamp}.json"
     
     try:
+        # Validate paths early in main function
+        validated_json_path = sanitize_input_path(args.json_file)
+        validated_log_path = sanitize_output_path(args.output_log)
+        
         # Load organizations from JSON file (excluding any in excluded_organizations)
-        organizations, excluded_orgs = load_organizations_from_json(args.json_file)
+        organizations, excluded_orgs = load_organizations_from_json(validated_json_path)
         
         if not organizations:
             print("No organizations found in the JSON file after filtering.")
@@ -302,7 +378,10 @@ def main():
             "excluded_organizations": excluded_orgs
         }
         
-        with open(args.output_log, 'w') as f:
+        # Validate and sanitize the output log path
+        safe_log_path = validated_log_path
+        
+        with open(safe_log_path, 'w') as f:
             json.dump(log_data, f, indent=2, ensure_ascii=False)
         
         # Print summary
@@ -313,7 +392,7 @@ def main():
         print(f"  Failed connections: {failed_connections}")
         print(f"  Organizations excluded: {len(excluded_orgs)}")
         print(f"  Success rate: {(successful_connections/total_orgs)*100:.1f}%")
-        print(f"  Log file: {args.output_log}")
+        print(f"  Log file: {validated_log_path}")
         
         if failed_connections > 0:
             print(f"\nFailed organizations:")

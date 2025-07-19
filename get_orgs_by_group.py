@@ -10,36 +10,112 @@ import requests
 import json
 import argparse
 import sys
+import os
 from datetime import datetime
+
+
+def sanitize_output_path(user_path, base_dir=None):
+    """
+    Validate and sanitize output file paths to prevent path traversal.
+    
+    Args:
+        user_path (str): User-provided file path
+        base_dir (str): Base directory to restrict writes to (default: current dir)
+    
+    Returns:
+        str: Validated absolute path
+        
+    Raises:
+        ValueError: If path is outside allowed directory or invalid
+    """
+    if base_dir is None:
+        base_dir = os.getcwd()
+    
+    # Convert to absolute paths
+    abs_user_path = os.path.abspath(user_path)
+    abs_base_dir = os.path.abspath(base_dir)
+    
+    # Check if the path is within the allowed directory
+    if not abs_user_path.startswith(abs_base_dir):
+        raise ValueError(f"Output path must be within {abs_base_dir}")
+    
+    # Ensure it's a valid file extension
+    if not abs_user_path.endswith('.json'):
+        raise ValueError("Output file must have .json extension")
+    
+    return abs_user_path
 
 
 def get_snyk_organizations(group_id, api_token):
     """
-    Fetch all organizations from a Snyk group using the API.
+    Fetch all organizations from a Snyk group using the API with pagination support.
     
     Args:
         group_id (str): The Snyk group ID
         api_token (str): The Snyk API token
         
     Returns:
-        dict: API response containing organizations data
+        dict: API response containing all organizations data
         
     Raises:
         requests.RequestException: If the API request fails
     """
-    url = f"https://api.snyk.io/v1/group/{group_id}/orgs"
-
     headers = {
         "Authorization": f"token {api_token}",
         "Content-Type": "application/json"
     }
     
+    # Initialize variables for pagination
+    all_orgs = []
+    page = 1
+    per_page = 100  # Maximum allowed by Snyk API
+    total_pages = None
+    base_response = None
+    
     try:
         print(f"Fetching organizations from group ID: {group_id}")
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
         
-        return response.json()
+        while True:
+            # Construct URL with pagination parameters
+            url = f"https://api.snyk.io/v1/group/{group_id}/orgs"
+            params = {
+                "page": page,
+                "perPage": per_page
+            }
+            
+            print(f"  Fetching page {page}" + (f" of {total_pages}" if total_pages else ""))
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Store the base response structure from the first page
+            if base_response is None:
+                base_response = data.copy()
+                base_response['orgs'] = []  # We'll accumulate orgs separately
+            
+            # Add organizations from this page
+            orgs_on_page = data.get('orgs', [])
+            all_orgs.extend(orgs_on_page)
+            
+            # Check if we have more pages
+            # Snyk API typically includes pagination info in headers or response
+            if len(orgs_on_page) < per_page:
+                # If we got fewer orgs than requested, we're on the last page
+                print(f"  Completed: Found {len(all_orgs)} total organizations")
+                break
+            
+            page += 1
+            
+            # Safety check to prevent infinite loops
+            if page > 50:  # Assuming max 5000 organizations (50 * 100)
+                print(f"  Warning: Stopped at page {page} to prevent infinite loop")
+                break
+        
+        # Combine all organizations into the response
+        base_response['orgs'] = all_orgs
+        
+        return base_response
         
     except requests.exceptions.HTTPError as e:
         if response.status_code == 401:
@@ -52,20 +128,20 @@ def get_snyk_organizations(group_id, api_token):
         raise requests.RequestException(f"Request failed: {e}")
 
 
-def save_to_json(data, output_file):
+def save_to_json(data, validated_output_file):
     """
     Save data to a JSON file with proper formatting.
     
     Args:
         data (dict): Data to save
-        output_file (str): Output file path
+        validated_output_file (str): Pre-validated output file path
     """
     try:
-        with open(output_file, 'w') as f:
+        with open(validated_output_file, 'w') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        print(f"Successfully saved organizations data to: {output_file}")
+        print(f"Successfully saved organizations data to: {validated_output_file}")
     except IOError as e:
-        raise IOError(f"Failed to write to file '{output_file}': {e}")
+        raise IOError(f"Failed to write to file '{validated_output_file}': {e}")
 
 
 def main():
@@ -112,6 +188,13 @@ def main():
         if args.output is None:
             args.output = f"snyk_orgs_for_{clean_group_name}.json"
         
+        # Validate and sanitize the output path early
+        try:
+            validated_output_path = sanitize_output_path(args.output)
+        except ValueError as e:
+            print(f"Error with output path: {e}", file=sys.stderr)
+            sys.exit(1)
+        
         # Filter out the specific organization named "<GroupName>-default"
         original_orgs = orgs_data.get("orgs", [])
         filtered_orgs = []
@@ -153,7 +236,7 @@ def main():
         }
         
         # Save to JSON file
-        save_to_json(enriched_data, args.output)
+        save_to_json(enriched_data, validated_output_path)
         
         # Print summary
         org_count = len(filtered_orgs)
@@ -162,7 +245,7 @@ def main():
         print(f"- Group Name: {group_name}")
         print(f"- Total organizations found: {org_count}")
         print(f"- Organizations excluded: {len(excluded_orgs)}")
-        print(f"- Output file: {args.output}")
+        print(f"- Output file: {validated_output_path}")
         
         if org_count > 0:
             print(f"\nFirst few organizations:")
@@ -176,7 +259,7 @@ def main():
             for org in excluded_orgs:
                 print(f"  - {org.get('name', 'N/A')} (ID: {org.get('id', 'N/A')})")
         
-    except (requests.RequestException, IOError) as e:
+    except (requests.RequestException, IOError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
     except KeyboardInterrupt:
