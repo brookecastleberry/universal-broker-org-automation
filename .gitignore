@@ -1,0 +1,25 @@
+# MCP configuration (keep local to IDE)
+mcp.json
+
+# DeepCode cache files
+.dccache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE files
+.vscode/settings.json
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
