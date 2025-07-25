@@ -2,20 +2,6 @@
 Script to connect Snyk organizations to Universal Broker connection.
 Reads organizations from a JSON file and connects each one to a provided Universal Broker connection.
 
-Usage:
-    1. Run the script:
-       python scale_broker_for_orgs.py --json-file <path_to_json> --connection-id <connection_id> --integration-id <integration_id> --integration-type <integration_type>
-
-    # If running independently from get_orgs_by_group.py (need to export first):
-    export SNYK_TOKEN=your_token_here
-    export TENANT_ID=abc123
-    python scale_broker_for_orgs.py --json-file snyk_orgs.json --connection-id xyz789 --integration-id github-integration --integration-type github
-
-Requirements:
-    - requests library: pip install requests
-    - Valid Snyk API token (exported as SNYK_TOKEN)
-    - Valid Snyk tenant ID (exported as TENANT_ID)
-    - JSON file with organizations data (from get_orgs_by_group.py)
 """
 
 import requests

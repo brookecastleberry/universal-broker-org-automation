@@ -2,14 +2,6 @@
 Script to extract all organizations from a Snyk group ID using the Snyk API.
 Saves the results to a JSON file.
 
-Usage:
-    1. First, export your Snyk API token and tenant ID:
-       export SNYK_TOKEN=your_api_token_here
-       export SNYK_TENANT_ID=your_tenant_id_here
-    
-    2. Then run the script:
-       python get_orgs_by_group.py --group-id <group_id> [--output <output_file>]
-
 """
 
 import requests

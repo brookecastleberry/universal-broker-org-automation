@@ -9,23 +9,35 @@ Extracts all organizations from a Snyk group and saves them to a JSON file with 
 
 **Features:**
 - ✅ Fetches ALL organizations (handles pagination automatically)
-- ✅ Filters out default organizations (`<GroupName>-default`)
 - ✅ Secure path validation (prevents path traversal attacks)
-- ✅ Rich metadata and exclusion tracking
+- ✅ Rich metadata tracking
 - ✅ Clean filename generation
+- ✅ Uses environment variables for secure API token handling
 
 ### 2. `scale_broker_for_orgs.py`
 Connects Snyk organizations to Universal Broker connections by reading from the JSON output of the first script.
 
 **Features:**
 - ✅ Batch processing with configurable delays
-- ✅ Skips excluded organizations automatically
 - ✅ Comprehensive logging and error handling
 - ✅ Secure path validation
 - ✅ Progress tracking and summaries
 - ✅ Debug mode for troubleshooting
+- ✅ Uses environment variables for secure credential handling
 
 ## 🚀 Quick Start
+
+### Prerequisites
+
+**System Requirements:**
+- Python 3.7 or higher
+- pip (Python package installer)
+
+**Snyk Requirements:**
+- Valid Snyk account with API access
+- Snyk API token with appropriate permissions
+- Snyk tenant ID (for Universal Broker operations)
+- Access to the Snyk group you want to process
 
 ### Installation
 
@@ -39,36 +51,40 @@ Connects Snyk organizations to Universal Broker connections by reading from the 
    ```bash
    pip install -r requirements.txt
    ```
+   
+   **Required packages:**
+   - `requests` - For HTTP API calls to Snyk
 
-3. **Set up your Snyk API token:**
-   - Go to [Snyk Account Settings](https://app.snyk.io/account)
-   - Generate an API token
-   - Keep it secure and ready for use
+3. **Get your Snyk credentials:**
+   - **API Token:** Go to [Snyk Account Settings](https://app.snyk.io/account) → Generate API token
+   - **Tenant ID:** Found in your Snyk URL or contact your Snyk admin
+   - **Group ID:** Found in the Snyk group URL you want to process
 
 ### Usage
 
-#### Step 1: Extract Organizations
+#### Step 1: Set Environment Variables
 ```bash
-python get_orgs_by_group.py \
-  --group-id <your-group-id> \
-  --api-token <your-snyk-api-token> \
-  --output snyk_orgs_for_mygroup.json
+export SNYK_TOKEN=your_api_token_here
+export TENANT_ID=your_tenant_id_here
 ```
 
-**Output:** Creates a JSON file with all organizations, excluding default ones.
+#### Step 2: Extract Organizations
+```bash
+python get_orgs_by_group.py --group-id <your-group-id>
+```
 
-#### Step 2: Connect to Universal Broker
+**Output:** Creates a JSON file with all organizations (e.g., `snyk_orgs_for_GroupName.json`).
+
+#### Step 3: Connect to Universal Broker
 ```bash
 python scale_broker_for_orgs.py \
-  --json-file snyk_orgs_for_mygroup.json \
-  --tenant-id <your-tenant-id> \
+  --json-file snyk_orgs_for_GroupName.json \
   --connection-id <your-connection-id> \
-  --api-token <your-snyk-api-token> \
   --integration-id <your-integration-id> \
   --integration-type github
 ```
 
-**Output:** Creates a connection log with results for each organization.
+**Output:** Creates `connection_log.json` with results for each organization.
 
 ## 📋 Command Reference
 
@@ -77,12 +93,17 @@ python scale_broker_for_orgs.py \
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `--group-id` | ✅ | Snyk group ID to fetch organizations from |
-| `--api-token` | ✅ | Snyk API token for authentication |
 | `--output` | ❌ | Output JSON file path (auto-generated if not specified) |
+
+**Environment Variables:**
+- `SNYK_TOKEN` - Snyk API token for authentication ✅ Required
+- `TENANT_ID` - Snyk tenant ID (optional for this script, but useful for workflow)
 
 **Example:**
 ```bash
-python get_orgs_by_group.py --group-id abc123 --api-token token456
+export SNYK_TOKEN=your_token_here
+export TENANT_ID=your_tenant_id_here
+python get_orgs_by_group.py --group-id abc123
 ```
 
 ### `scale_broker_for_orgs.py`
@@ -90,22 +111,23 @@ python get_orgs_by_group.py --group-id abc123 --api-token token456
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `--json-file` | ✅ | Path to JSON file from `get_orgs_by_group.py` |
-| `--tenant-id` | ✅ | Snyk tenant ID |
 | `--connection-id` | ✅ | Universal Broker connection ID |
-| `--api-token` | ✅ | Snyk API token |
 | `--integration-id` | ✅ | Integration ID for the broker connection |
 | `--integration-type` | ✅ | Integration type (`github`, `gitlab`, `bitbucket`, etc.) |
 | `--delay` | ❌ | Delay between API calls in seconds (default: 0.5) |
-| `--output-log` | ❌ | Output log file (auto-generated if not specified) |
+| `--output-log` | ❌ | Output log file (default: `connection_log.json`) |
 | `--debug` | ❌ | Enable debug output |
+
+**Environment Variables:**
+- `SNYK_TOKEN` - Snyk API token for authentication ✅ Required
+- `TENANT_ID` - Snyk tenant ID ✅ Required
 
 **Example:**
 ```bash
+# Environment variables should already be set from previous step
 python scale_broker_for_orgs.py \
-  --json-file snyk_orgs_for_mygroup.json \
-  --tenant-id tenant123 \
+  --json-file snyk_orgs_for_GroupName.json \
   --connection-id conn456 \
-  --api-token token789 \
   --integration-id github-integration \
   --integration-type github \
   --delay 1.0 \
@@ -120,8 +142,7 @@ python scale_broker_for_orgs.py \
   "metadata": {
     "group_id": "abc123",
     "group_name": "My Company",
-    "total_organizations": 25,
-    "excluded_count": 1
+    "total_organizations": 25
   },
   "organizations": {
     "orgs": [
@@ -131,8 +152,7 @@ python scale_broker_for_orgs.py \
         "url": "https://api.snyk.io/org/org123"
       }
     ]
-  },
-  "excluded_organizations": [...]
+  }
 }
 ```
 
@@ -143,41 +163,108 @@ python scale_broker_for_orgs.py \
     "total_organizations": 25,
     "successful_connections": 24,
     "failed_connections": 1,
-    "success_rate": 96.0
+    "tenant_id": "tenant123",
+    "connection_id": "conn456",
+    "timestamp": "2025-07-24T14:28:00.123456"
   },
-  "results": [...],
-  "excluded_organizations": [...]
+  "results": [
+    {
+      "org_id": "org123",
+      "org_name": "Frontend Team",
+      "success": true,
+      "response": {"status": "connected"},
+      "timestamp": "2025-07-24T14:28:01.123456"
+    }
+  ]
 }
 ```
 
-## 🔒 Security Features
+## � Security & Best Practices
 
+### Environment Variables
+Both scripts use environment variables for sensitive credentials:
+- **More Secure:** Tokens don't appear in command history or process lists
+- **Convenient:** Export once, use for both scripts
+- **Standard Practice:** Industry standard for handling secrets
+
+### Security Features
 Both scripts include comprehensive security measures:
 
 - **Path Traversal Protection:** All file paths are validated and sanitized
-- **Input Validation:** API parameters and file contents are validated
+- **Input Validation:** API parameters and file contents are validated  
 - **Safe File Operations:** Restricted to current working directory
 - **Error Handling:** Graceful handling of API errors and network issues
 
 ## 🐛 Troubleshooting
 
+### Prerequisites Check
+Before running the scripts, ensure you have:
+
+**For `get_orgs_by_group.py`:**
+- ✅ Python 3.7+ installed
+- ✅ `requests` library installed (`pip install requests`)
+- ✅ `SNYK_TOKEN` environment variable set
+- ✅ Valid Snyk group ID
+- ✅ API token has permissions to read the group
+
+**For `scale_broker_for_orgs.py`:**
+- ✅ All requirements from first script
+- ✅ `TENANT_ID` environment variable set
+- ✅ Valid Universal Broker connection ID
+- ✅ Valid integration ID and type
+- ✅ JSON file from first script exists
+
 ### Common Issues
 
 1. **Authentication Error (401):**
-   - Verify your Snyk API token is correct
+   ```
+   Error: Authentication failed. Please check your API token.
+   ```
+   - Verify your `SNYK_TOKEN` is correct and not expired
    - Ensure the token has appropriate permissions
+   - Check if you copied the token correctly (no extra spaces)
 
 2. **Group Not Found (404):**
+   ```
+   Error: Group ID 'abc123' not found or you don't have access to it.
+   ```
    - Check the group ID is correct
    - Verify you have access to the group
+   - Ensure you're using the right Snyk organization
 
-3. **Rate Limiting:**
-   - Increase the `--delay` parameter
-   - Default is 0.5 seconds between requests
+3. **Environment Variable Not Set:**
+   ```
+   Error: SNYK_TOKEN environment variable is not set.
+   Error: TENANT_ID environment variable is not set.
+   ```
+   - Export the required environment variables:
+     ```bash
+     export SNYK_TOKEN=your_token_here
+     export TENANT_ID=your_tenant_id_here
+     ```
 
-4. **Path Errors:**
+4. **Rate Limiting:**
+   ```
+   Error: Too many requests
+   ```
+   - Increase the `--delay` parameter (default: 0.5 seconds)
+   - Try: `--delay 1.0` or higher
+
+5. **Path Errors:**
+   ```
+   Error: Output path must be within /current/directory
+   ```
    - Ensure you're running from the correct directory
-   - Use absolute paths if needed
+   - Use relative paths or ensure files are in current directory
+   - Check file permissions
+
+6. **JSON Structure Errors:**
+   ```
+   Error: Unsupported JSON structure
+   ```
+   - Ensure the JSON file was created by `get_orgs_by_group.py`
+   - Check the JSON file isn't corrupted
+   - Verify the file contains organization data
 
 ### Debug Mode
 Enable debug mode for detailed API request/response information:
@@ -190,7 +277,7 @@ python scale_broker_for_orgs.py [args] --debug
 | Feature | `get_orgs_by_group.py` | `scale_broker_for_orgs.py` |
 |---------|----------------------|---------------------------|
 | Pagination Support | ✅ | N/A |
-| Exclusion Filtering | ✅ | ✅ |
+| Environment Variables | ✅ | ✅ |
 | Security Validation | ✅ | ✅ |
 | Progress Tracking | ✅ | ✅ |
 | Error Handling | ✅ | ✅ |
