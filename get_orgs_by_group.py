@@ -3,7 +3,13 @@ Script to extract all organizations from a Snyk group ID using the Snyk API.
 Saves the results to a JSON file.
 
 Usage:
-    python get_orgs.py --group-id <group_id> --api-token <api_token> [--output <output_file>]
+    1. First, export your Snyk API token and tenant ID:
+       export SNYK_TOKEN=your_api_token_here
+       export SNYK_TENANT_ID=your_tenant_id_here
+    
+    2. Then run the script:
+       python get_orgs_by_group.py --group-id <group_id> [--output <output_file>]
+
 """
 
 import requests
@@ -11,7 +17,7 @@ import json
 import argparse
 import sys
 import os
-from datetime import datetime
+import re
 
 
 def sanitize_output_path(user_path, base_dir=None):
@@ -65,10 +71,10 @@ def get_snyk_organizations(group_id, api_token):
         "Content-Type": "application/json"
     }
     
-    # Initialize variables for pagination
+    # Variables for pagination
     all_orgs = []
     page = 1
-    per_page = 100  # Maximum allowed by Snyk API
+    per_page = 100  
     total_pages = None
     base_response = None
     
@@ -76,7 +82,6 @@ def get_snyk_organizations(group_id, api_token):
         print(f"Fetching organizations from group ID: {group_id}")
         
         while True:
-            # Construct URL with pagination parameters
             url = f"https://api.snyk.io/v1/group/{group_id}/orgs"
             params = {
                 "page": page,
@@ -92,14 +97,13 @@ def get_snyk_organizations(group_id, api_token):
             # Store the base response structure from the first page
             if base_response is None:
                 base_response = data.copy()
-                base_response['orgs'] = []  # We'll accumulate orgs separately
+                base_response['orgs'] = []  
             
             # Add organizations from this page
             orgs_on_page = data.get('orgs', [])
             all_orgs.extend(orgs_on_page)
             
             # Check if we have more pages
-            # Snyk API typically includes pagination info in headers or response
             if len(orgs_on_page) < per_page:
                 # If we got fewer orgs than requested, we're on the last page
                 print(f"  Completed: Found {len(all_orgs)} total organizations")
@@ -107,7 +111,7 @@ def get_snyk_organizations(group_id, api_token):
             
             page += 1
             
-            # Safety check to prevent infinite loops
+            # Prevent infinite loops
             if page > 50:  # Assuming max 5000 organizations (50 * 100)
                 print(f"  Warning: Stopped at page {page} to prevent infinite loop")
                 break
@@ -145,7 +149,6 @@ def save_to_json(data, validated_output_file):
 
 
 def main():
-    """Main function to handle command line arguments and orchestrate the process."""
     parser = argparse.ArgumentParser(
         description="Extract all organizations from a Snyk group ID and save to JSON file"
     )
@@ -157,12 +160,6 @@ def main():
     )
     
     parser.add_argument(
-        "--api-token",
-        required=True,
-        help="Snyk API token for authentication"
-    )
-    
-    parser.add_argument(
         "--output",
         default=None,
         help="Output JSON file path (default: snyk_orgs_for_<group_name>.json)"
@@ -170,16 +167,23 @@ def main():
     
     args = parser.parse_args()
     
+    # Get API token from environment variable
+    api_token = os.getenv('SNYK_TOKEN')
+    if not api_token:
+        print("Error: SNYK_TOKEN environment variable is not set.", file=sys.stderr)
+        print("Please export your Snyk API token:", file=sys.stderr)
+        print("  export SNYK_TOKEN=your_api_token_here", file=sys.stderr)
+        sys.exit(1)
+    
     try:
-        # Fetch organizations from Snyk API (includes group name)
-        orgs_data = get_snyk_organizations(args.group_id, args.api_token)
+        # Fetch organizations from Snyk API 
+        orgs_data = get_snyk_organizations(args.group_id, api_token)
         
         # Extract group name directly from the API response
         group_name = orgs_data.get("name", args.group_id)
         print(f"Found group name: {group_name}")
         
         # Clean the group name to be filesystem-safe
-        import re
         clean_group_name = re.sub(r'[<>:"/\\|?*]', '_', group_name)
         clean_group_name = re.sub(r'\s+', '_', clean_group_name)
         clean_group_name = clean_group_name.strip('_')
@@ -188,76 +192,45 @@ def main():
         if args.output is None:
             args.output = f"snyk_orgs_for_{clean_group_name}.json"
         
-        # Validate and sanitize the output path early
+        # Validate and sanitize the output path
         try:
             validated_output_path = sanitize_output_path(args.output)
         except ValueError as e:
             print(f"Error with output path: {e}", file=sys.stderr)
             sys.exit(1)
         
-        # Filter out the specific organization named "<GroupName>-default"
-        original_orgs = orgs_data.get("orgs", [])
-        filtered_orgs = []
-        excluded_orgs = []
+        # Get organizations from the API response
+        orgs = orgs_data.get("orgs", [])
         
-        # Create the expected default organization name (use original group name for matching)
-        expected_default_name = f"{group_name}-default"
-        
-        for org in original_orgs:
-            org_name = org.get("name", "")
-            # Check if the organization name exactly matches "<GroupName>-default"
-            if org_name.lower() == expected_default_name.lower():
-                excluded_orgs.append(org)
-                print(f"Excluding organization: {org_name} (matches '{expected_default_name}' pattern)")
-            else:
-                filtered_orgs.append(org)
-        
-        # Update the orgs data with filtered organizations
-        orgs_data["orgs"] = filtered_orgs
-        
-        print(f"Original organizations: {len(original_orgs)}")
-        print(f"Filtered organizations: {len(filtered_orgs)}")
-        print(f"Excluded organizations: {len(excluded_orgs)}")
+        print(f"Found {len(orgs)} organizations")
         
         # Add metadata to the response
         enriched_data = {
             "metadata": {
                 "group_id": args.group_id,
                 "group_name": group_name,
-                "timestamp": datetime.now().isoformat(),
-                "total_organizations": len(filtered_orgs),
-                "original_count": len(original_orgs),
-                "excluded_count": len(excluded_orgs),
-                "filter_criteria": f"Excluded organization named '{expected_default_name}'",
-                "api_endpoint": f"https://api.snyk.io/v1/group/{args.group_id}/orgs"
+                "total_organizations": len(orgs)
             },
-            "organizations": orgs_data,
-            "excluded_organizations": excluded_orgs
+            "organizations": orgs_data
         }
         
         # Save to JSON file
         save_to_json(enriched_data, validated_output_path)
         
         # Print summary
-        org_count = len(filtered_orgs)
+        org_count = len(orgs)
         print(f"\nSummary:")
         print(f"- Group ID: {args.group_id}")
         print(f"- Group Name: {group_name}")
         print(f"- Total organizations found: {org_count}")
-        print(f"- Organizations excluded: {len(excluded_orgs)}")
         print(f"- Output file: {validated_output_path}")
         
         if org_count > 0:
             print(f"\nFirst few organizations:")
-            for i, org in enumerate(filtered_orgs[:3]):
+            for i, org in enumerate(orgs[:3]):
                 print(f"  {i+1}. {org.get('name', 'N/A')} (ID: {org.get('id', 'N/A')})")
             if org_count > 3:
                 print(f"  ... and {org_count - 3} more")
-        
-        if excluded_orgs:
-            print(f"\nExcluded organizations:")
-            for org in excluded_orgs:
-                print(f"  - {org.get('name', 'N/A')} (ID: {org.get('id', 'N/A')})")
         
     except (requests.RequestException, IOError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)

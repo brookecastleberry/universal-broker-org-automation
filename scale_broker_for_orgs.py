@@ -1,18 +1,21 @@
 """
-Script to connect Snyk organizations to Universal Broker connections.
+Script to connect Snyk organizations to Universal Broker connection.
 Reads organizations from a JSON file and connects each one to a provided Universal Broker connection.
 
 Usage:
-    python scale_ub.py --json-file <path_to_json> --tenant-id <tenant_id> --connection-id <connection_id> --api-token <api_token> --integration-id <integration_id> --integration-type <integration_type>
+    1. Run the script:
+       python scale_broker_for_orgs.py --json-file <path_to_json> --connection-id <connection_id> --integration-id <integration_id> --integration-type <integration_type>
 
-Examples:
-    python scale_ub.py --json-file snyk_orgs.json --tenant-id abc123 --connection-id xyz789 --api-token token123 --integration-id github-integration --integration-type github
-    python scale_ub.py --json-file snyk_orgs.json --tenant-id abc123 --connection-id xyz789 --api-token token123 --integration-id gitlab-integration --integration-type gitlab --debug
+    # If running independently from get_orgs_by_group.py (need to export first):
+    export SNYK_TOKEN=your_token_here
+    export TENANT_ID=abc123
+    python scale_broker_for_orgs.py --json-file snyk_orgs.json --connection-id xyz789 --integration-id github-integration --integration-type github
 
 Requirements:
     - requests library: pip install requests
-    - Valid Snyk API token
-    - JSON file with organizations data (from get_orgs.py)
+    - Valid Snyk API token (exported as SNYK_TOKEN)
+    - Valid Snyk tenant ID (exported as TENANT_ID)
+    - JSON file with organizations data (from get_orgs_by_group.py)
 """
 
 import requests
@@ -95,14 +98,13 @@ def sanitize_output_path(user_path, base_dir=None):
 
 def load_organizations_from_json(validated_json_file_path):
     """
-    Load organizations data from JSON file, excluding any organizations 
-    that are in the excluded_organizations section.
+    Load organizations data from JSON file.
     
     Args:
-        validated_json_file_path (str): Pre-validated path to the JSON file containing organizations
+        validated_json_file_path: Pre-validated path to the JSON file containing organizations
         
     Returns:
-        tuple: (list of organizations, list of excluded organizations)
+        list: List of organizations
         
     Raises:
         FileNotFoundError: If the JSON file doesn't exist
@@ -114,32 +116,20 @@ def load_organizations_from_json(validated_json_file_path):
         
         # Handle different JSON structures
         if 'organizations' in data and 'orgs' in data['organizations']:
-            # Structure from get_orgs.py with metadata
+            # Structure from get_orgs_by_group.py with metadata
             orgs = data['organizations']['orgs']
-            excluded_orgs = data.get('excluded_organizations', [])
         elif 'orgs' in data:
             # Direct structure from Snyk API
             orgs = data['orgs']
-            excluded_orgs = data.get('excluded_organizations', [])
         elif isinstance(data, list):
             # Direct list of organizations
             orgs = data
-            excluded_orgs = []
         else:
             raise ValueError("Unsupported JSON structure. Expected 'orgs' key or list of organizations.")
         
-        # Get excluded organization IDs for quick lookup
-        excluded_ids = {org.get('id') for org in excluded_orgs if org.get('id')}
-        
-        # Filter out excluded organizations from the main list
-        filtered_orgs = [org for org in orgs if org.get('id') not in excluded_ids]
-        
         print(f"Loaded {len(orgs)} organizations from {validated_json_file_path}")
-        if excluded_orgs:
-            print(f"Found {len(excluded_orgs)} excluded organizations - these will be skipped")
-            print(f"Processing {len(filtered_orgs)} organizations for Universal Broker connections")
         
-        return filtered_orgs, excluded_orgs
+        return orgs
         
     except FileNotFoundError:
         raise FileNotFoundError(f"JSON file not found: {validated_json_file_path}")
@@ -225,21 +215,9 @@ def main():
     )
     
     parser.add_argument(
-        "--tenant-id",
-        required=True,
-        help="Snyk tenant ID"
-    )
-    
-    parser.add_argument(
         "--connection-id",
         required=True,
         help="Universal Broker connection ID"
-    )
-    
-    parser.add_argument(
-        "--api-token",
-        required=True,
-        help="Snyk API token for authentication"
     )
     
     parser.add_argument(
@@ -275,28 +253,35 @@ def main():
     
     args = parser.parse_args()
     
+    # Get API token and tenant ID from environment variables
+    api_token = os.getenv('SNYK_TOKEN')
+    if not api_token:
+        print("Error: SNYK_TOKEN environment variable is not set.", file=sys.stderr)
+        print("Please export your Snyk API token:", file=sys.stderr)
+        print("  export SNYK_TOKEN=your_api_token_here", file=sys.stderr)
+        sys.exit(1)
+    
+    tenant_id = os.getenv('TENANT_ID')
+    if not tenant_id:
+        print("Error: TENANT_ID environment variable is not set.", file=sys.stderr)
+        print("Please export your Snyk tenant ID:", file=sys.stderr)
+        print("  export TENANT_ID=your_tenant_id_here", file=sys.stderr)
+        sys.exit(1)
+    
     # Generate default log filename if not provided
     if args.output_log is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        args.output_log = f"connection_log_{timestamp}.json"
-    
+        args.output_log = "connection_log.json"    
     try:
         # Validate paths early in main function
         validated_json_path = sanitize_input_path(args.json_file)
         validated_log_path = sanitize_output_path(args.output_log)
         
-        # Load organizations from JSON file (excluding any in excluded_organizations)
-        organizations, excluded_orgs = load_organizations_from_json(validated_json_path)
+        # Load organizations from JSON file
+        organizations = load_organizations_from_json(validated_json_path)
         
         if not organizations:
-            print("No organizations found in the JSON file after filtering.")
+            print("No organizations found in the JSON file.")
             return
-        
-        # Show excluded organizations if any
-        if excluded_orgs:
-            print(f"\nSkipping {len(excluded_orgs)} excluded organizations:")
-            for org in excluded_orgs:
-                print(f"  - {org.get('name', 'N/A')} (ID: {org.get('id', 'N/A')})")
         
         # Initialize counters and results
         total_orgs = len(organizations)
@@ -305,7 +290,7 @@ def main():
         results = []
         
         print(f"\nStarting connection process for {total_orgs} organizations...")
-        print(f"Tenant ID: {args.tenant_id}")
+        print(f"Tenant ID: {tenant_id}")
         print(f"Connection ID: {args.connection_id}")
         print(f"Delay between calls: {args.delay} seconds")
         print("-" * 60)
@@ -331,10 +316,10 @@ def main():
             
             # Connect organization to broker
             success, response_data = connect_org_to_broker(
-                args.tenant_id, 
+                tenant_id, 
                 args.connection_id, 
                 org_id, 
-                args.api_token,
+                api_token,
                 args.integration_id,
                 args.integration_type,
                 args.debug
@@ -369,13 +354,11 @@ def main():
                 "total_organizations": total_orgs,
                 "successful_connections": successful_connections,
                 "failed_connections": failed_connections,
-                "excluded_organizations": len(excluded_orgs),
-                "tenant_id": args.tenant_id,
+                "tenant_id": tenant_id,
                 "connection_id": args.connection_id,
                 "timestamp": datetime.now().isoformat()
             },
-            "results": results,
-            "excluded_organizations": excluded_orgs
+            "results": results
         }
         
         # Validate and sanitize the output log path
@@ -390,8 +373,6 @@ def main():
         print(f"  Total organizations processed: {total_orgs}")
         print(f"  Successful connections: {successful_connections}")
         print(f"  Failed connections: {failed_connections}")
-        print(f"  Organizations excluded: {len(excluded_orgs)}")
-        print(f"  Success rate: {(successful_connections/total_orgs)*100:.1f}%")
         print(f"  Log file: {validated_log_path}")
         
         if failed_connections > 0:
@@ -400,11 +381,6 @@ def main():
                 if not result['success']:
                     error_msg = result['response'].get('message', 'Unknown error')
                     print(f"  - {result['org_name']} (ID: {result['org_id']}): {error_msg}")
-        
-        if excluded_orgs:
-            print(f"\nExcluded organizations (not processed):")
-            for org in excluded_orgs:
-                print(f"  - {org.get('name', 'N/A')} (ID: {org.get('id', 'N/A')})")
         
     except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)

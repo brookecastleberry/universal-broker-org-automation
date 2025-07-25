@@ -1,0 +1,58 @@
+{
+  "summary": {
+    "total_organizations": 3,
+    "successful_connections": 2,
+    "failed_connections": 1,
+    "tenant_id": "6388dd62-0f4e-4079-bea3-91a2fc2747bf",
+    "connection_id": "923ed575-1511-42f1-bedf-35c5965e5f2d",
+    "timestamp": "2025-07-24T17:13:58.706010"
+  },
+  "results": [
+    {
+      "org_id": "c73dee90-5faa-416f-bb1c-c079ec8fd351",
+      "org_name": "Artifactory Test Org",
+      "success": true,
+      "response": {
+        "jsonapi": {
+          "version": "1.0"
+        },
+        "data": {
+          "org_id": "c73dee90-5faa-416f-bb1c-c079ec8fd351",
+          "id": "91210b06-126f-4b12-b5c3-6f9aa20df454",
+          "type": "broker_integration"
+        },
+        "links": {}
+      },
+      "timestamp": "2025-07-24T17:13:56.584225"
+    },
+    {
+      "org_id": "758b1ca6-29f1-46bd-b4c2-6b83213c9db3",
+      "org_name": "BC - AI",
+      "success": true,
+      "response": {
+        "jsonapi": {
+          "version": "1.0"
+        },
+        "data": {
+          "org_id": "758b1ca6-29f1-46bd-b4c2-6b83213c9db3",
+          "id": "0439d98b-66d0-4509-9e52-94bc89178dcb",
+          "type": "broker_integration"
+        },
+        "links": {}
+      },
+      "timestamp": "2025-07-24T17:13:57.402644"
+    },
+    {
+      "org_id": "edaa6c4b-ead6-4236-8877-40a45520a51e",
+      "org_name": "BC-Snyk-Org",
+      "success": false,
+      "response": {
+        "status_code": 400,
+        "error": "{\"jsonapi\":{\"version\":\"1.0\"},\"errors\":[{\"id\":\"ed78981f-bd22-4ffb-89a2-bbe842df4cb3\",\"detail\":\"Connection integration already exists.\",\"status\":\"400\"}]}",
+        "url": "https://api.snyk.io/rest/tenants/6388dd62-0f4e-4079-bea3-91a2fc2747bf/brokers/connections/923ed575-1511-42f1-bedf-35c5965e5f2d/orgs/edaa6c4b-ead6-4236-8877-40a45520a51e/integration?version=2024-02-08~experimental",
+        "message": "Failed to connect organization edaa6c4b-ead6-4236-8877-40a45520a51e"
+      },
+      "timestamp": "2025-07-24T17:13:58.705886"
+    }
+  ]
+}
