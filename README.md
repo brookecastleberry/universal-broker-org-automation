@@ -2,13 +2,14 @@
 
 # Universal Broker Organization Automation
 
-**Automate Snyk organization management and Universal Broker connections with Python scripts.**
+
+**Automate Snyk organization management and integrate a single Universal Broker connection across multiple organizations with Python scripts.**
 
 ![Snyk OSS Example](https://raw.githubusercontent.com/snyk-labs/oss-images/main/oss-example.jpg)
 
 This repo provides:
 - Extraction of Snyk organizations by group
-- Bulk connection of organizations to Universal Broker
+- Bulk integration of a Universal Broker connection to multiple organizations
 
 
 ## Scripts
@@ -17,7 +18,7 @@ This repo provides:
 Extracts all organizations from a Snyk group and saves them to a JSON file.
 
 ### `scale_broker_for_orgs.py`
-Connects organizations to Universal Broker using the JSON output from the first script.
+Integrates organizations to a single Universal Broker connection using the JSON output from the first script. Please remove organizations from the JSON that you don't want to scale the connection out for.
 
 ## Requirements
 
