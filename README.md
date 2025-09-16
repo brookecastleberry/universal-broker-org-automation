@@ -1,7 +1,7 @@
 
 # Universal Broker Organization Automation
 
-Automate Snyk organization management and Universal Broker connections with secure Python scripts. This repo provides:
+Automate Snyk organization management and Universal Broker connections with Python scripts. This repo provides:
 - Extraction of Snyk organizations by group
 - Bulk connection of organizations to Universal Broker
 
