@@ -1,9 +1,15 @@
 
+
 # Universal Broker Organization Automation
 
-Automate Snyk organization management and Universal Broker connections with Python scripts. This repo provides:
+**Automate Snyk organization management and Universal Broker connections with Python scripts.**
+
+![Snyk OSS Example](https://raw.githubusercontent.com/snyk-labs/oss-images/main/oss-example.jpg)
+
+This repo provides:
 - Extraction of Snyk organizations by group
 - Bulk connection of organizations to Universal Broker
+
 
 ## Scripts
 
@@ -21,6 +27,9 @@ Connects organizations to Universal Broker using the JSON output from the first 
 - **Environment variables only:**
   - `SNYK_API_TOKEN` (required)
   - `SNYK_TENANT_ID` (required)
+
+
+> **Note:** All instructions below work in both `zsh` and `bash` shells.
 
 ## Installation
 
