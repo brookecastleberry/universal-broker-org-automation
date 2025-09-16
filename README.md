@@ -115,20 +115,6 @@ python scale_broker_for_orgs.py \
 }
 ```
 
-## Security & Best Practices
-
-- Credentials are only accepted via environment variables (`SNYK_API_TOKEN`, `SNYK_TENANT_ID`).
-- No sensitive data in CLI arguments or command history.
-- All file paths are validated and sanitized.
-- Comprehensive error handling and logging.
-
-## Troubleshooting
-
-- **401 Unauthorized:** Check your API token and permissions.
-- **404 Not Found:** Verify group ID and access rights.
-- **Rate Limiting:** Add delays between requests if needed.
-- **Path Errors:** Use valid, absolute paths.
-
 ## License
 
 MIT 
