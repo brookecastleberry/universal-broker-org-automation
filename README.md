@@ -1,6 +1,4 @@
-
-
-# Universal Broker Organization Automation
+# Universal Broker Multi-Org Connector
 
 
 **Automate Snyk organization management and integrate a single Universal Broker connection across multiple organizations with Python scripts.**
