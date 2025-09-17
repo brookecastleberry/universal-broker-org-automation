@@ -108,7 +108,6 @@ def main():
         help="Snyk group ID to fetch organizations from"
     )
     
-    #Remove this
     
     parser.add_argument(
         "--output",
