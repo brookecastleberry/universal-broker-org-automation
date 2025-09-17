@@ -34,9 +34,16 @@ Integrates organizations to a single Universal Broker connection using the JSON 
 
 ## Installation
 
+### (Recommended) Create and activate a virtual environment
+
 ```bash
-git clone <repository-url>
-cd universal-broker-multi-org-connector
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### Install requirements
+
+```bash
 pip install -r requirements.txt
 ```
 
