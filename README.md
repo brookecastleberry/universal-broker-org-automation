@@ -34,7 +34,7 @@ Integrates organizations to a single Universal Broker connection using the JSON 
 
 ## Installation
 
-### (Recommended) Create and activate a virtual environment
+### Create and activate a virtual environment
 
 ```bash
 python3 -m venv venv
